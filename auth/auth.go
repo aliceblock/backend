@@ -3,11 +3,27 @@ package auth
 import (
 	"database/sql"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func GetBodyData(c *gin.Context) (map[string]interface{}, error) {
+	data := map[string]interface{}{}
+
+	if c.ContentType() == "application/x-www-form-urlencoded" {
+		if err := c.Request.ParseForm(); err != nil {
+			return nil, err
+		}
+		for key, value := range c.Request.PostForm {
+			data[key] = value[0]
+		}
+	} else {
+		c.Bind(&data)
+	}
+
+	return data, nil
+}
 
 func Router(engine *gin.Engine, db *sql.DB) {
 	auth := engine.Group("/auth")
@@ -18,15 +34,15 @@ func Router(engine *gin.Engine, db *sql.DB) {
 			var email string
 			var password string
 
-			if strings.Contains(c.Request.Header.Get("Content-Type"), "application/json") {
-				var data map[string]interface{}
-				c.BindJSON(&data)
-				email = data["email"].(string)
-				password = data["password"].(string)
-			} else {
-				email = c.PostForm("email")
-				password = c.PostForm("password")
+			data, err := GetBodyData(c)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"type":    "error",
+					"message": "parsing form error.",
+				})
+				return
 			}
+			email, password = data["email"].(string), data["password"].(string)
 
 			if email == "" || password == "" {
 				c.JSON(http.StatusBadRequest, gin.H{
@@ -94,6 +110,33 @@ func Router(engine *gin.Engine, db *sql.DB) {
 				},
 				"token": token,
 			})
+		})
+
+		auth.POST("/google", func(c *gin.Context) {
+			var token string
+			var ok bool
+			data, err := GetBodyData(c)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"type":    "error",
+					"message": "parsing form error.",
+				})
+				return
+			}
+			if token, ok = data["token"].(string); !ok {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"type":    "error",
+					"message": "No access token provided.",
+				})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"type":    "success",
+				"message": "Google OAuth2",
+				"token":   token,
+			})
+			return
 		})
 
 		auth.GET("/me", func(c *gin.Context) {
