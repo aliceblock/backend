@@ -3,6 +3,7 @@ package auth
 import (
 	"database/sql"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -14,8 +15,18 @@ func Router(engine *gin.Engine, db *sql.DB) {
 		auth.POST("/login", func(c *gin.Context) {
 			var qID int
 			var qPassword string
-			email := c.PostForm("email")
-			password := c.PostForm("password")
+			var email string
+			var password string
+
+			if strings.Contains(c.Request.Header.Get("Content-Type"), "application/json") {
+				var data map[string]interface{}
+				c.BindJSON(&data)
+				email = data["email"].(string)
+				password = data["password"].(string)
+			} else {
+				email = c.PostForm("email")
+				password = c.PostForm("password")
+			}
 
 			if email == "" || password == "" {
 				c.JSON(http.StatusBadRequest, gin.H{
@@ -39,6 +50,13 @@ func Router(engine *gin.Engine, db *sql.DB) {
 				err = query.Scan(&qID, &qPassword)
 			}
 			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"type":    "error",
+					"message": "query error.",
+				})
+				return
+			}
+			if qID == 0 {
 				c.JSON(http.StatusForbidden, gin.H{
 					"type":    "error",
 					"message": "User with provided email not found in database.",

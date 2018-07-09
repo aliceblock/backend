@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/aliceblock/backend/auth"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/spf13/viper"
@@ -49,6 +50,11 @@ func main() {
 
 	db := connectDB(v1.GetString("CONNECTION_STRING"))
 	r := gin.Default()
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowAllOrigins = true
+	// corsConfig.AllowOrigins = []string{}
+	corsConfig.AddAllowHeaders("x-access-token")
+	r.Use(cors.New(corsConfig))
 
 	auth.Router(r, db)
 
